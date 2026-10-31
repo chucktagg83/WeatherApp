@@ -31,6 +31,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import retrofit2.Retrofit
 import kotlin.coroutines.cancellation.CancellationException
+// Class 2
+import android.util.Log
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,7 +56,12 @@ fun WeatherScreen() {
     var tempResult by remember { mutableStateOf("Temperature: --") }
     var descResult by remember { mutableStateOf("Description: --") }
 
-    val context = LocalContext.current
+    var windResult by remember { mutableStateOf("Wind Speed: --") }
+    var humidityResult by remember { mutableStateOf("Humidity: --")}
+    var isLoading by remember { mutableStateOf(false)}
+
+
+    val context = LocalContext.current // Toast.makeText() requires an Android Context -- a composable isn't an Activity, so we pull one from LocalContext insted
     val scope = rememberCoroutineScope()
     Column(
         modifier = Modifier
@@ -67,6 +75,7 @@ fun WeatherScreen() {
             modifier = Modifier.fillMaxWidth()
         )
         Button(
+            enabled = !isLoading, // disables the button mid-request
             onClick = {
                 val trimmedCity = city.trim()
                 if (trimmedCity.isEmpty()) {
@@ -74,22 +83,43 @@ fun WeatherScreen() {
                         context, "Please enter a city name", Toast.LENGTH_SHORT
                     ).show()
                 } else {
+                    isLoading = true
                     scope.launch {
                         try {
                             val response = withContext(Dispatchers.IO) {
                                 RetrofitClient.weatherApiService.getWeather(
-                                    trimmedCity, AppConstants.API_KEY, AppConstants.UNITS
+                                    city = trimmedCity,
+                                    apiKey = AppConstants.API_KEY,
+                                    units = AppConstants.UNITS
                                 )
                             }
+                            // response.raw() gives the underlying OkHttp response
+                            Log.d("WeatherApp", "Requested URL: ${response.raw().request.url}")
+                            // the exact URL Retrofit built.  check log cat filter by WeatherApp
+                            Log.d("WeatherApp", "Response code: ${response.code()}")
                             if (response.isSuccessful) {
                                 val weatherResponse = response.body()
                                 if (weatherResponse != null) {
-                                    cityResult = "City: ${weatherResponse.name}"
-                                    tempResult = "Temperature: ${weatherResponse.main.temp}°"
+                                    cityResult = "City: ${weatherResponse.name} "
+                                    tempResult = "Temperature: ${weatherResponse.main.temp}°F"
                                     descResult =
                                         "Description: ${weatherResponse.weather.firstOrNull()?.description ?: "Unavailable"}"
+                                    // Assignment 2
+                                    windResult = "Wind Speed: ${weatherResponse.wind.speed}m/s"
+                                    humidityResult = "Humidity: ${weatherResponse.main.humidity}%"
+                                    // 1. Set windResult from weather.wind.speed (append " m/s")
+                                    // 2. Set humidityResult from weather.main.humidity (append "%")
+                                    // 3. Below in the else branch, replace the single Toast with a
+                                    //    when (response.code()) -- see Hour 3 for the exact messages
+                                    // TODO: this Toast gets replaced by step 3 above -- a when (response.code())
+                                    // with different messages for 404, 401, and anything else
                                 }
                             } else {
+                                val errorMessage = when (response.code()) {
+                                    404 -> "City not found.  Check the name and try again."
+                                    401 -> "Invalid API key.  Check your configuration."
+                                    else -> "Weather request failed.  Please try again."
+                                }
                                 Toast.makeText(
                                     context,
                                     "City not found. Check the name and try again.",
@@ -102,6 +132,9 @@ fun WeatherScreen() {
                                 context, "Network error. Check your connection.", Toast.LENGTH_SHORT
                             ).show()
                         }
+                        finally { // finally always runs - success, HTTP error, or exception
+                            isLoading = false
+                        }
                     }
                 }
             },
@@ -109,7 +142,7 @@ fun WeatherScreen() {
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         ) {
-            Text("Get Weather")
+            Text( if (isLoading) "Loading..." else "Get Weather")
         }
         Text(
             text = cityResult, fontSize = 20.sp, modifier = Modifier.padding(top = 24.dp)
@@ -119,6 +152,12 @@ fun WeatherScreen() {
         )
         Text(
             text = descResult, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp)
+        )
+        Text(
+            text = windResult, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp)
+        )
+        Text(
+            text = humidityResult, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp)
         )
     }
 }
