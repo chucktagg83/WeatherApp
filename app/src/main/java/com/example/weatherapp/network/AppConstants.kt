@@ -14,4 +14,9 @@ object AppConstants {
 
     // UNITS
     const val UNITS = "imperial"
+
+    // NEW for Class 3: Paste your APIDog Cloud Mock base URL here
+    // Example: "https://mock.apidog.com/m1/123456-0-default/"
+    // IMPORTANT: must end with "/" -- Retrofit requires it
+    const val FEEDBACK_BASE_URL = "https://mock.apidog.com/m1/1407480-1417572-default/"
 }

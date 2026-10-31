@@ -33,7 +33,10 @@ import retrofit2.Retrofit
 import kotlin.coroutines.cancellation.CancellationException
 // Class 2
 import android.util.Log
-
+// Class 3
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Slider
+import com.example.weatherapp.data.FeedbackRequest
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,9 +63,15 @@ fun WeatherScreen() {
     var humidityResult by remember { mutableStateOf("Humidity: --")}
     var isLoading by remember { mutableStateOf(false)}
 
+    var currentCity by remember {mutableStateOf("") }
+    var rating by remember { mutableStateOf(3) }
+    var comment by remember { mutableStateOf("") }
+    var feedbackResult by remember { mutableStateOf("") }
 
     val context = LocalContext.current // Toast.makeText() requires an Android Context -- a composable isn't an Activity, so we pull one from LocalContext insted
     val scope = rememberCoroutineScope()
+
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -113,6 +122,7 @@ fun WeatherScreen() {
                                     //    when (response.code()) -- see Hour 3 for the exact messages
                                     // TODO: this Toast gets replaced by step 3 above -- a when (response.code())
                                     // with different messages for 404, 401, and anything else
+                                    currentCity = trimmedCity // remember this city so feedback can POST
                                 }
                             } else {
                                 val errorMessage = when (response.code()) {
@@ -159,5 +169,61 @@ fun WeatherScreen() {
         Text(
             text = humidityResult, fontSize = 18.sp, modifier = Modifier.padding(top = 8.dp)
         )
+
+        HorizontalDivider( modifier = Modifier.padding(top = 24.dp, bottom = 16.dp))
+
+        Text("How do you feel about today's weather?", fontSize = 16.sp)
+
+        // rating system
+        Slider(
+            value = rating.toFloat(),
+            onValueChange = { rating = it.toInt() },
+            valueRange = 1f..5f,
+            steps = 3
+        )
+
+        Text("Rating: $rating/5") // slider has no built-in label
+
+        TextField(
+            value = comment,
+            onValueChange = { comment = it },
+            label = { Text("Leave a comment about the weather...")},
+            minLines = 3,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+        )
+        Button(
+            onClick = {
+                if (currentCity.isEmpty()) {
+                    Toast.makeText(context, "Please fetch weather for a city first", Toast.LENGTH_SHORT).show()
+                } else if (comment.isBlank()) {
+                    Toast.makeText(context, "Please leave a comment", Toast.LENGTH_SHORT).show()
+                } else {
+                    scope.launch {
+                        try {
+                            val request = FeedbackRequest(city = currentCity, rating = rating, comment = comment)
+                            val response = withContext(Dispatchers.IO) {
+                                RetrofitClient.feedbackAPIService.submitFeedback(request)
+                            }
+                            // ASSIGNMENT 3
+                            // 1. If response.isSuccessful: set feedbackResult to a success message,
+                            //    then clear the comment field and reset rating back to 3
+                            // 2. If NOT successful: set feedbackResult to a failure message
+                            if (response.isSuccessful) {
+                                feedbackResult = "Feedback submitted successfully!"
+                                comment = ""
+                                rating = 3
+                            } else {
+                                feedbackResult = "Failed to submit feedback. Please try again."
+                            }
+                        } catch (e: Exception){
+                            feedbackResult = "Error submitting feedback.  Check your connection."
+                        }
+                    }
+                }
+            }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+        ) {
+            Text("Submit Feedback")
+        }
+        Text(feedbackResult, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
     }
 }
